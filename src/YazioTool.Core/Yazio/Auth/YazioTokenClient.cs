@@ -30,10 +30,10 @@ internal sealed class YazioTokenClient(IHttpClientFactory httpClientFactory, IOp
         grant["client_secret"] = options.Value.ClientSecret;
 
         var http = httpClientFactory.CreateClient(HttpClientName);
-        using var response = await http.PostAsJsonAsync("oauth/token", grant, YazioJson.Options, cancellationToken);
+        using var response = await http.PostAsJsonAsync("oauth/token", grant, YazioJsonContext.Default.DictionaryStringString, cancellationToken);
         await YazioApiException.ThrowIfFailedAsync(response, cancellationToken);
 
-        return await response.Content.ReadFromJsonAsync<TokenResponse>(YazioJson.Options, cancellationToken)
+        return await response.Content.ReadFromJsonAsync(YazioJsonContext.Default.TokenResponse, cancellationToken)
             ?? throw new YazioApiException(response.StatusCode, "YAZIO returned an empty token response.");
     }
 }

@@ -1,6 +1,6 @@
 using System.CommandLine;
-using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.Options;
 using YazioTool.Core.Abstractions;
 using YazioTool.Core.Application;
@@ -17,12 +17,6 @@ internal sealed class DiaryCommands(IDiaryReader reader, IDiaryWriter writer, Ti
     private const int InvalidInput = 2;
     private const int YazioFailure = 3;
 
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
-
     private DateTime Now => timeProvider.GetLocalNow().DateTime;
 
     public RootCommand CreateRootCommand() => new("YAZIO food diary from the command line. Output is JSON.")
@@ -37,7 +31,8 @@ internal sealed class DiaryCommands(IDiaryReader reader, IDiaryWriter writer, Ti
         var date = DateOption();
         var command = new Command("diary", "Show the diary for a day: entries by meal with ids, totals, goals, remaining.") { date };
         command.SetAction((result, ct) => RunAsync(async () =>
-            DiaryView.From(await reader.GetDayAsync(DiaryInput.ParseDate(result.GetValue(date), Now), ct))));
+            DiaryView.From(await reader.GetDayAsync(DiaryInput.ParseDate(result.GetValue(date), Now), ct)),
+            CliJsonContext.Readable.DiaryView));
         return command;
     }
 
@@ -63,15 +58,13 @@ internal sealed class DiaryCommands(IDiaryReader reader, IDiaryWriter writer, Ti
                 result.GetValue(carbs), result.GetValue(meal)!, result.GetValue(date), result.GetValue(time), Now);
 
             var id = await writer.AddQuickEntryAsync(entry, ct);
-            return new
-            {
+            return new AddResult(
                 id,
                 entry.Name,
-                Meal = entry.Meal.ToString().ToLowerInvariant(),
-                ConsumedAt = entry.ConsumedAt.ToString("yyyy-MM-dd HH:mm"),
-                Nutrition = NutritionView.From(entry.Nutrition),
-            };
-        }));
+                entry.Meal.ToString().ToLowerInvariant(),
+                entry.ConsumedAt.ToString("yyyy-MM-dd HH:mm"),
+                NutritionView.From(entry.Nutrition));
+        }, CliJsonContext.Readable.AddResult));
         return command;
     }
 
@@ -83,19 +76,19 @@ internal sealed class DiaryCommands(IDiaryReader reader, IDiaryWriter writer, Ti
         {
             var parsed = DiaryInput.ParseIds(result.GetValue(ids)!);
             await writer.RemoveEntriesAsync(parsed, ct);
-            return new { removed = parsed };
-        }));
+            return new RemoveResult(parsed);
+        }, CliJsonContext.Readable.RemoveResult));
         return command;
     }
 
     private static Option<string?> DateOption() =>
         new("--date", "-d") { Description = "Day in YYYY-MM-DD. Defaults to today." };
 
-    private static async Task<int> RunAsync<T>(Func<Task<T>> action)
+    private static async Task<int> RunAsync<T>(Func<Task<T>> action, JsonTypeInfo<T> typeInfo)
     {
         try
         {
-            Console.Out.WriteLine(JsonSerializer.Serialize(await action(), Json));
+            Console.Out.WriteLine(JsonSerializer.Serialize(await action(), typeInfo));
             return 0;
         }
         catch (Exception ex) when (ex is ArgumentException or OptionsValidationException or YazioCredentialsMissingException)
@@ -110,7 +103,7 @@ internal sealed class DiaryCommands(IDiaryReader reader, IDiaryWriter writer, Ti
 
     private static int Fail(string message, int exitCode)
     {
-        Console.Error.WriteLine(JsonSerializer.Serialize(new { error = message }, Json));
+        Console.Error.WriteLine(JsonSerializer.Serialize(new ErrorResult(message), CliJsonContext.Readable.ErrorResult));
         return exitCode;
     }
 }

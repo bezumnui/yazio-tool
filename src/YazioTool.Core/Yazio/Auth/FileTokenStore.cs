@@ -14,7 +14,7 @@ internal sealed class FileTokenStore(string path) : ITokenStore
         try
         {
             await using var stream = File.OpenRead(path);
-            return await JsonSerializer.DeserializeAsync<StoredToken>(stream, YazioJson.Options, cancellationToken);
+            return await JsonSerializer.DeserializeAsync(stream, YazioJsonContext.Default.StoredToken, cancellationToken);
         }
         catch (Exception ex) when (ex is JsonException or IOException)
         {
@@ -31,6 +31,6 @@ internal sealed class FileTokenStore(string path) : ITokenStore
             options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
 
         await using var stream = new FileStream(path, options);
-        await JsonSerializer.SerializeAsync(stream, token, YazioJson.Options, cancellationToken);
+        await JsonSerializer.SerializeAsync(stream, token, YazioJsonContext.Default.StoredToken, cancellationToken);
     }
 }

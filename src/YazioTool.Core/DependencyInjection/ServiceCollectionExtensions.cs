@@ -19,7 +19,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddOptions<YazioOptions>()
             .Bind(configuration)
-            .ValidateDataAnnotations()
+            .Validate(YazioOptions.IsValid, YazioOptions.ValidationMessage)
             .ValidateOnStart();
 
         services.TryAddSingleton(TimeProvider.System);

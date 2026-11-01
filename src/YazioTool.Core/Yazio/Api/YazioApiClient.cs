@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace YazioTool.Core.Yazio.Api;
 
@@ -10,10 +11,10 @@ internal sealed class YazioApiClient(IHttpClientFactory httpClientFactory) : IYa
     private HttpClient Http => httpClientFactory.CreateClient(HttpClientName);
 
     public Task<ConsumedItemsDto> GetConsumedItemsAsync(DateOnly date, CancellationToken cancellationToken) =>
-        GetAsync<ConsumedItemsDto>($"user/consumed-items?date={YazioFormats.FormatDate(date)}", cancellationToken);
+        GetAsync($"user/consumed-items?date={YazioFormats.FormatDate(date)}", YazioJsonContext.Default.ConsumedItemsDto, cancellationToken);
 
     public Task<DailySummaryDto> GetDailySummaryAsync(DateOnly date, CancellationToken cancellationToken) =>
-        GetAsync<DailySummaryDto>($"user/widgets/daily-summary?date={YazioFormats.FormatDate(date)}", cancellationToken);
+        GetAsync($"user/widgets/daily-summary?date={YazioFormats.FormatDate(date)}", YazioJsonContext.Default.DailySummaryDto, cancellationToken);
 
     public async Task<ProductDto?> GetProductAsync(Guid productId, CancellationToken cancellationToken)
     {
@@ -22,12 +23,12 @@ internal sealed class YazioApiClient(IHttpClientFactory httpClientFactory) : IYa
             return null;
 
         await YazioApiException.ThrowIfFailedAsync(response, cancellationToken);
-        return await response.Content.ReadFromJsonAsync<ProductDto>(YazioJson.Options, cancellationToken);
+        return await response.Content.ReadFromJsonAsync(YazioJsonContext.Default.ProductDto, cancellationToken);
     }
 
     public async Task AddConsumedItemsAsync(AddConsumedItemsRequest request, CancellationToken cancellationToken)
     {
-        using var response = await Http.PostAsJsonAsync("user/consumed-items", request, YazioJson.Options, cancellationToken);
+        using var response = await Http.PostAsJsonAsync("user/consumed-items", request, YazioJsonContext.Default.AddConsumedItemsRequest, cancellationToken);
         await YazioApiException.ThrowIfFailedAsync(response, cancellationToken);
     }
 
@@ -35,18 +36,18 @@ internal sealed class YazioApiClient(IHttpClientFactory httpClientFactory) : IYa
     {
         using var request = new HttpRequestMessage(HttpMethod.Delete, "user/consumed-items")
         {
-            Content = JsonContent.Create(entryIds, options: YazioJson.Options),
+            Content = JsonContent.Create(entryIds, YazioJsonContext.Default.IReadOnlyCollectionGuid),
         };
         using var response = await Http.SendAsync(request, cancellationToken);
         await YazioApiException.ThrowIfFailedAsync(response, cancellationToken);
     }
 
-    private async Task<T> GetAsync<T>(string uri, CancellationToken cancellationToken)
+    private async Task<T> GetAsync<T>(string uri, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken)
     {
         using var response = await Http.GetAsync(uri, cancellationToken);
         await YazioApiException.ThrowIfFailedAsync(response, cancellationToken);
 
-        return await response.Content.ReadFromJsonAsync<T>(YazioJson.Options, cancellationToken)
+        return await response.Content.ReadFromJsonAsync(typeInfo, cancellationToken)
             ?? throw new YazioApiException(response.StatusCode, $"YAZIO returned an empty body for {uri}.");
     }
 }
