@@ -1,0 +1,8 @@
+services:
+  yazio-mcp:
+    build: .
+    image: yazio-tool-mcp
+    env_file: .env
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

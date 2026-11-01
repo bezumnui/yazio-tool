@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/YazioTool.Cli/YazioTool.Cli.csproj" />
+    <Project Path="src/YazioTool.Core/YazioTool.Core.csproj" />
+    <Project Path="src/YazioTool.Mcp/YazioTool.Mcp.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/YazioTool.Core.Tests/YazioTool.Core.Tests.csproj" />
+  </Folder>
+</Solution>
