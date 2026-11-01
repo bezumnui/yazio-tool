@@ -76,6 +76,9 @@ internal sealed class YazioAccessTokenProvider(
         }
 
         var o = options.Value;
+        if (string.IsNullOrEmpty(o.Username) || string.IsNullOrEmpty(o.Password))
+            throw new YazioCredentialsMissingException();
+
         return ToStored(await tokenClient.RequestWithPasswordAsync(o.Username, o.Password, cancellationToken));
     }
 

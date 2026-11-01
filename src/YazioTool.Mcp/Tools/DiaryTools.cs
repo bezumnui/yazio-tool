@@ -57,7 +57,7 @@ public sealed class DiaryTools(IDiaryReader reader, IDiaryWriter writer, TimePro
         {
             return await action();
         }
-        catch (Exception ex) when (ex is ArgumentException or YazioApiException)
+        catch (Exception ex) when (ex is ArgumentException or YazioApiException or YazioCredentialsMissingException)
         {
             throw new McpException(ex.Message);
         }

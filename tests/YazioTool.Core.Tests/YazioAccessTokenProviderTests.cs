@@ -77,6 +77,30 @@ public sealed class YazioAccessTokenProviderTests
     }
 
     [Fact]
+    public async Task Works_from_stored_token_without_credentials()
+    {
+        _store.LoadAsync(Arg.Any<CancellationToken>())
+            .Returns(new StoredToken("stored", "refresh", _time.GetUtcNow().AddHours(1)));
+
+        Assert.Equal("stored", await CreateProvider(new YazioOptions()).GetAccessTokenAsync(Ct));
+    }
+
+    [Fact]
+    public async Task Missing_credentials_fail_only_when_login_is_needed()
+    {
+        _store.LoadAsync(Arg.Any<CancellationToken>())
+            .Returns(new StoredToken("expired", "refresh", _time.GetUtcNow().AddHours(-1)));
+        _tokenClient.RequestWithRefreshTokenAsync(default!, default)
+            .ThrowsAsyncForAnyArgs(new YazioApiException(HttpStatusCode.BadRequest, "invalid_grant"));
+
+        await Assert.ThrowsAsync<YazioCredentialsMissingException>(
+            () => CreateProvider(new YazioOptions()).GetAccessTokenAsync(Ct));
+    }
+
+    private YazioAccessTokenProvider CreateProvider(YazioOptions options) =>
+        new(_tokenClient, _store, Options.Create(options), _time);
+
+    [Fact]
     public async Task Invalidate_forces_new_token()
     {
         _tokenClient.RequestWithPasswordAsync(default!, default!, default).ReturnsForAnyArgs(new TokenResponse("access-1", "refresh-1", 3600));

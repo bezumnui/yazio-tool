@@ -98,7 +98,7 @@ internal sealed class DiaryCommands(IDiaryReader reader, IDiaryWriter writer, Ti
             Console.Out.WriteLine(JsonSerializer.Serialize(await action(), Json));
             return 0;
         }
-        catch (Exception ex) when (ex is ArgumentException or OptionsValidationException)
+        catch (Exception ex) when (ex is ArgumentException or OptionsValidationException or YazioCredentialsMissingException)
         {
             return Fail(ex.Message, InvalidInput);
         }

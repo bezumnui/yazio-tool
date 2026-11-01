@@ -16,9 +16,11 @@ public sealed class YazioOptions
     [Required]
     public string ClientSecret { get; set; } = "6rok2m65xuskgkgogw40wkkk8sw0osg84s8cggsc4woos4s8o";
 
-    [Required]
+    /// <summary>
+    /// Needed only to log in when no valid or refreshable token is available
+    /// (see <see cref="Auth.ITokenStore"/>).
+    /// </summary>
     public string Username { get; set; } = "";
 
-    [Required]
     public string Password { get; set; } = "";
 }

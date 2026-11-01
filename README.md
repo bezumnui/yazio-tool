@@ -50,8 +50,8 @@ Core/Yazio:   YazioDiaryReader / YazioDiaryWriter
 
 | Ключ (`appsettings` / env) | Описание |
 |---|---|
-| `Yazio:Username` / `Yazio__Username` | e-mail YAZIO (обязательно) |
-| `Yazio:Password` / `Yazio__Password` | пароль (обязательно) |
+| `Yazio:Username` / `Yazio__Username` | e-mail YAZIO (нужен только для входа, когда нет действующего/обновляемого токена) |
+| `Yazio:Password` / `Yazio__Password` | пароль (то же) |
 | `Yazio:BaseUrl` | по умолчанию `https://yzapi.yazio.com/v19/` |
 | `Yazio:ClientId`, `Yazio:ClientSecret` | по умолчанию — credentials приложения YAZIO |
 | `Mcp:ApiKey` / `Mcp__ApiKey` | ключ MCP-эндпоинта (только MCP) |
@@ -115,8 +115,7 @@ dotnet build
 dotnet test --solution YazioTool.slnx
 ```
 
-## Не проверено на реальном API
+## Версия API
 
-Формат `simple_products` при **добавлении** выведен из ответа `GET /user/consumed-items`
-(в открытых обёртках добавления быстрых записей нет). Если YAZIO вернёт 4xx — снять реальный
-запрос приложения (Reqable) и поправить `NewSimpleProductDto`.
+Проверено на реальном API (2026-11): `v15`–`v19` работают, `v20`–`v22` отвечают `403 version_blocked`,
+`v23+` — `410`. По умолчанию используется `v19`, можно переопределить через `Yazio:BaseUrl`.
