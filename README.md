@@ -9,7 +9,7 @@
 | `src/YazioTool.Cli` | CLI `yazio` поверх библиотеки: self-contained single-file бинарник, JSON-вывод (для скиллов/песочниц) |
 | `tests/YazioTool.Core.Tests` | xUnit v3 тесты библиотеки |
 
-> ⚠️ У YAZIO нет публичного API. Используется приватный API приложения (`yzapi.yazio.com/v20`)
+> ⚠️ У YAZIO нет публичного API. Используется приватный API приложения (`yzapi.yazio.com/v19`)
 > с публично известными client credentials. Может сломаться в любой момент; использование нарушает ToS.
 
 ## Возможности
@@ -52,7 +52,7 @@ Core/Yazio:   YazioDiaryReader / YazioDiaryWriter
 |---|---|
 | `Yazio:Username` / `Yazio__Username` | e-mail YAZIO (обязательно) |
 | `Yazio:Password` / `Yazio__Password` | пароль (обязательно) |
-| `Yazio:BaseUrl` | по умолчанию `https://yzapi.yazio.com/v20/` |
+| `Yazio:BaseUrl` | по умолчанию `https://yzapi.yazio.com/v19/` |
 | `Yazio:ClientId`, `Yazio:ClientSecret` | по умолчанию — credentials приложения YAZIO |
 | `Mcp:ApiKey` / `Mcp__ApiKey` | ключ MCP-эндпоинта (только MCP) |
 | `TZ` | часовой пояс для «сегодня/сейчас» |

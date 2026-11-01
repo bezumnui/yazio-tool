@@ -7,7 +7,7 @@ public sealed class YazioOptions
     public const string SectionName = "Yazio";
 
     [Required, Url]
-    public string BaseUrl { get; set; } = "https://yzapi.yazio.com/v20/";
+    public string BaseUrl { get; set; } = "https://yzapi.yazio.com/v19/";
 
     /// <summary>OAuth client credentials of the official YAZIO app (publicly known).</summary>
     [Required]
