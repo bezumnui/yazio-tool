@@ -7,6 +7,7 @@ Tools for the YAZIO food diary in C# / .NET 10:
 | `src/YazioTool.Core` | Library ("backend"): domain, client for the **unofficial** YAZIO API, authentication, DI |
 | `src/YazioTool.Mcp` | MCP server (Streamable HTTP) on top of the library |
 | `src/YazioTool.Cli` | `yazio` CLI on top of the library: self-contained single-file binary with JSON output (for skills/sandboxes) |
+| `skill/yazio` | Agent skill (Claude / ChatGPT) that drives the CLI from a sandbox |
 | `tests/YazioTool.Core.Tests` | xUnit v3 tests for the library |
 
 > ⚠️ YAZIO has no public API. This project uses the private API of the YAZIO app (`yzapi.yazio.com/v19`)
@@ -106,6 +107,18 @@ yazio remove <id>
 ```
 
 Full command reference, output formats and exit codes: [docs/CLI.md](docs/CLI.md).
+
+## Skill
+
+`skill/yazio` is an agent skill that logs food and reads the diary through the bundled CLI.
+Build the installable package (the binary is bundled, `credentials.json` stays empty):
+
+```bash
+./scripts/package-skill.sh   # → artifacts/skill/yazio.skill (~7 MB)
+```
+
+The user puts their YAZIO e-mail and password (and optionally a time zone) into `yazio/credentials.json`
+inside the archive before installing it. With empty credentials, the skill explains how to do that.
 
 ## Development
 

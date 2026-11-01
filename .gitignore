@@ -6,3 +6,4 @@ obj/
 .env
 TestResults/
 artifacts/
+skill/yazio/bin/
