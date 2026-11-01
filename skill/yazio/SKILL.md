@@ -16,7 +16,7 @@ YAZIO has no public API: the tool uses the private API of the YAZIO app ([source
 
 ## Running the tool
 
-Always go through the wrapper, never run the binary directly. The wrapper reads `credentials.json`, unpacks the bundled binary into a temp folder and passes everything through:
+Always go through the wrapper, never run the binary directly. The wrapper reads `credentials.json`, copies the bundled binary to a temp folder (the skill folder may be read-only) and passes everything through:
 
 ```bash
 python3 <skill-dir>/scripts/yazio.py diary

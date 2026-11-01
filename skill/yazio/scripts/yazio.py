@@ -12,13 +12,13 @@ import os
 import platform
 import stat
 import sys
+import shutil
 import tempfile
-import zipfile
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 CREDENTIALS_FILE = SKILL_DIR / "credentials.json"
-ARCHIVES = {"x86_64": "yazio-linux-x64.zip"}
+BINARIES = {"x86_64": "yazio-linux-x64"}
 CACHE_DIR = Path(os.environ.get("YAZIO_SKILL_CACHE") or Path(tempfile.gettempdir()) / "yazio-skill")
 EXIT_SETUP = 4
 
@@ -57,20 +57,22 @@ def load_credentials() -> dict:
 def binary_path() -> Path:
     machine = platform.machine().lower()
     machine = {"amd64": "x86_64", "x64": "x86_64"}.get(machine, machine)
-    archive_name = ARCHIVES.get(machine)
-    if platform.system() != "Linux" or archive_name is None:
+    binary_name = BINARIES.get(machine)
+    if platform.system() != "Linux" or binary_name is None:
         fail("unsupported_platform", f"The bundled CLI supports Linux x86_64 only, this is {platform.system()} {machine}.")
 
-    archive = SKILL_DIR / "bin" / archive_name
-    if not archive.exists():
-        fail("binary_missing", f"{archive} is missing from the skill package.")
+    bundled = SKILL_DIR / "bin" / binary_name
+    if not bundled.exists():
+        fail("binary_missing", f"{bundled} is missing from the skill package.")
 
-    # One extracted copy per archive version; the skill directory itself may be read-only.
-    target = CACHE_DIR / f"yazio-{archive.stat().st_size}"
+    # Installed skills may be read-only and lose the executable bit,
+    # so run an executable copy from the cache (one per binary version).
+    target = CACHE_DIR / f"yazio-{bundled.stat().st_size}"
     if not target.exists():
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        with zipfile.ZipFile(archive) as zf, tempfile.NamedTemporaryFile(dir=CACHE_DIR, delete=False) as tmp:
-            tmp.write(zf.read("yazio"))
+        with tempfile.NamedTemporaryFile(dir=CACHE_DIR, delete=False) as tmp:
+            with bundled.open("rb") as src:
+                shutil.copyfileobj(src, tmp)
         os.chmod(tmp.name, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
         os.replace(tmp.name, target)
     return target
