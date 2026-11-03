@@ -1,45 +1,45 @@
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.Extensions.Options;
+using YazioTool.Mcp.Security.OAuth;
 
 namespace YazioTool.Mcp.Security;
 
 /// <summary>
-/// Protects <c>/mcp</c> with a static key passed as <c>Authorization: Bearer &lt;key&gt;</c>
-/// or, for clients that cannot send headers, as the <c>key</c> query parameter.
+/// Protects <c>/mcp</c>. Accepts the static key as <c>Authorization: Bearer &lt;key&gt;</c> or, for clients
+/// that cannot send headers, as the <c>key</c> query parameter, and access tokens issued by the OAuth flow.
 /// </summary>
 internal sealed class ApiKeyMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly byte[]? _expectedKey;
+    private readonly ApiKeyOptions _options;
+    private readonly OAuthTokens _tokens;
 
-    public ApiKeyMiddleware(RequestDelegate next, IOptions<ApiKeyOptions> options, ILogger<ApiKeyMiddleware> logger)
+    public ApiKeyMiddleware(RequestDelegate next, IOptions<ApiKeyOptions> options, OAuthTokens tokens, ILogger<ApiKeyMiddleware> logger)
     {
         _next = next;
-        var apiKey = options.Value.ApiKey;
-        if (string.IsNullOrEmpty(apiKey))
+        _options = options.Value;
+        _tokens = tokens;
+        if (string.IsNullOrEmpty(_options.ApiKey))
             logger.LogWarning("Mcp:ApiKey is not set: the MCP endpoint is accessible without authentication.");
-        else
-            _expectedKey = Encoding.UTF8.GetBytes(apiKey);
     }
 
     public Task InvokeAsync(HttpContext context)
     {
-        if (_expectedKey is null || !context.Request.Path.StartsWithSegments("/mcp") || IsAuthorized(context.Request))
+        if (!_tokens.Enabled || !context.Request.Path.StartsWithSegments("/mcp") || IsAuthorized(context.Request))
             return _next(context);
 
+        var metadataUrl = OAuthUrls.BaseUrl(context.Request, _options) + OAuthUrls.ProtectedResourceMetadataPath + "/mcp";
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-        context.Response.Headers.WWWAuthenticate = "Bearer";
+        context.Response.Headers.WWWAuthenticate = $"Bearer resource_metadata=\"{metadataUrl}\"";
         return Task.CompletedTask;
     }
 
     private bool IsAuthorized(HttpRequest request)
     {
         var header = request.Headers.Authorization.ToString();
-        var provided = header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
-            ? header["Bearer ".Length..].Trim()
-            : request.Query["key"].ToString();
+        if (!header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            return _options.Matches(request.Query["key"].ToString());
 
-        return CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(provided), _expectedKey);
+        var provided = header["Bearer ".Length..].Trim();
+        return _options.Matches(provided) || _tokens.Read(provided, TokenType.Access) is not null;
     }
 }
