@@ -9,6 +9,7 @@ Tools for the YAZIO food diary in C# / .NET 10:
 | `src/YazioTool.Cli` | `yazio` CLI on top of the library: self-contained single-file binary with JSON output (for skills/sandboxes) |
 | `skill/yazio` | Agent skill (Claude / ChatGPT) that drives the CLI from a sandbox |
 | `tests/YazioTool.Core.Tests` | xUnit v3 tests for the library |
+| `tests/YazioTool.Mcp.Tests` | xUnit v3 tests for the MCP server (OAuth flow) |
 
 > ⚠️ YAZIO has no public API. This project uses the private API of the YAZIO app (`yzapi.yazio.com/v22`)
 > with publicly known client credentials. It may break at any time, and using it violates the YAZIO ToS.
@@ -63,7 +64,8 @@ Token handling: the token is cached and refreshed with the refresh token one min
 | `Yazio:BuildNumber` | sent as `X-Yazio-Build-Number`, defaults to `2643100` |
 | `Yazio:Platform` | sent as `X-Yazio-Platform`, defaults to `android` |
 | `Yazio:ClientId`, `Yazio:ClientSecret` | default to the YAZIO app credentials |
-| `Mcp:ApiKey` / `Mcp__ApiKey` | key for the MCP endpoint (MCP only) |
+| `Mcp:ApiKey` / `Mcp__ApiKey` | key for the MCP endpoint; also the password on the OAuth consent page (MCP only) |
+| `Mcp:PublicUrl` / `Mcp__PublicUrl` | public base URL used in OAuth metadata, e.g. `https://yazio.example.com` (MCP only, optional) |
 | `TZ` | time zone for "today"/"now" |
 
 The CLI also reads `YAZIO_USERNAME`, `YAZIO_PASSWORD` and `YAZIO_TOKEN_CACHE`
@@ -86,12 +88,36 @@ dotnet run --project src/YazioTool.Mcp   # http://localhost:5080/mcp
 ```
 
 Endpoint: `POST /mcp` (stateless Streamable HTTP). Health check: `GET /health`.
-If `Mcp:ApiKey` is set, requests need `Authorization: Bearer <key>` or `?key=<key>`.
-The query parameter is for clients that cannot set headers, e.g. claude.ai connectors.
+If `Mcp:ApiKey` is set, requests need one of:
 
-Claude Code:
+- an OAuth access token (see below);
+- `Authorization: Bearer <key>`;
+- `?key=<key>` for clients that cannot set headers.
+
+### OAuth (claude.ai connectors, Claude Code)
+
+With `Mcp:ApiKey` set, the server is also a minimal OAuth 2.1 authorization server, so MCP clients can
+connect with just the URL `https://<host>/mcp`:
+
+- `GET /.well-known/oauth-protected-resource[/mcp]`: protected resource metadata (RFC 9728);
+- `GET /.well-known/oauth-authorization-server`: authorization server metadata (RFC 8414);
+- `POST /register`: dynamic client registration (RFC 7591), public clients only;
+- `GET|POST /authorize`: authorization code flow with PKCE S256; the consent page asks for `Mcp:ApiKey`;
+- `POST /token`: `authorization_code` and `refresh_token` grants.
+
+Clients, codes and tokens are stateless and HMAC-signed with a key derived from `Mcp:ApiKey`, so they survive
+restarts; changing `Mcp:ApiKey` revokes all of them. Access tokens live 1 hour, refresh tokens 90 days.
+
+Behind a TLS-terminating proxy (cloudflared, nginx) set `Mcp:PublicUrl` to the public https URL
+(`X-Forwarded-Proto` is honoured otherwise).
+
+claude.ai: *Settings → Connectors → Add custom connector*, URL `https://<host>/mcp`, then enter the key on the
+page that opens.
+
+Claude Code, with OAuth (run `/mcp` to log in) or with the static key:
 
 ```bash
+claude mcp add --transport http yazio https://<host>/mcp
 claude mcp add --transport http yazio http://localhost:8080/mcp --header "Authorization: Bearer <key>"
 ```
 
