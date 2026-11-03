@@ -12,7 +12,7 @@ namespace YazioTool.Cli;
 /// Command definitions. Every command prints one JSON document to stdout;
 /// failures print <c>{"error": "..."}</c> to stderr with a non-zero exit code.
 /// </summary>
-internal sealed class DiaryCommands(IDiaryReader reader, IDiaryWriter writer, TimeProvider timeProvider)
+internal sealed class DiaryCommands(IDiaryReader reader, IDiaryWriter writer, IStreakService streak, TimeProvider timeProvider)
 {
     private const int InvalidInput = 2;
     private const int YazioFailure = 3;
@@ -24,6 +24,7 @@ internal sealed class DiaryCommands(IDiaryReader reader, IDiaryWriter writer, Ti
         CreateDiaryCommand(),
         CreateAddCommand(),
         CreateRemoveCommand(),
+        CreateStreakCommand(),
     };
 
     private Command CreateDiaryCommand()
@@ -46,10 +47,11 @@ internal sealed class DiaryCommands(IDiaryReader reader, IDiaryWriter writer, Ti
         var meal = new Option<string>("--meal", "-m") { Description = "breakfast | lunch | dinner | snack.", Required = true };
         var date = DateOption();
         var time = new Option<string?>("--time", "-t") { Description = "HH:mm. Defaults to now for today, otherwise a typical time for the meal." };
+        var withStreak = new Option<bool>("--streak", "-s") { Description = "Also mark the day in the YAZIO streak (the flame), like the app does." };
 
         var command = new Command("add", "Add a quick entry (name + kcal and macros, no product from the database).")
         {
-            name, kcal, protein, fat, carbs, meal, date, time,
+            name, kcal, protein, fat, carbs, meal, date, time, withStreak,
         };
         command.SetAction((result, ct) => RunAsync(async () =>
         {
@@ -58,12 +60,16 @@ internal sealed class DiaryCommands(IDiaryReader reader, IDiaryWriter writer, Ti
                 result.GetValue(carbs), result.GetValue(meal)!, result.GetValue(date), result.GetValue(time), Now);
 
             var id = await writer.AddQuickEntryAsync(entry, ct);
+            var day = result.GetValue(withStreak)
+                ? StreakDayView.From(await streak.TrackDayAsync(DateOnly.FromDateTime(entry.ConsumedAt), ct))
+                : null;
             return new AddResult(
                 id,
                 entry.Name,
                 entry.Meal.ToString().ToLowerInvariant(),
                 entry.ConsumedAt.ToString("yyyy-MM-dd HH:mm"),
-                NutritionView.From(entry.Nutrition));
+                NutritionView.From(entry.Nutrition),
+                day);
         }, CliJsonContext.Readable.AddResult));
         return command;
     }
@@ -78,6 +84,36 @@ internal sealed class DiaryCommands(IDiaryReader reader, IDiaryWriter writer, Ti
             await writer.RemoveEntriesAsync(parsed, ct);
             return new RemoveResult(parsed);
         }, CliJsonContext.Readable.RemoveResult));
+        return command;
+    }
+
+    private Command CreateStreakCommand()
+    {
+        var days = new Option<int>("--days") { Description = "How many recent tracked days to show.", DefaultValueFactory = _ => 14 };
+        var command = new Command("streak", "Show the YAZIO streak: current count, freezes, recent tracked days.") { days, CreateStreakSetCommand() };
+        command.SetAction((result, ct) => RunAsync(async () =>
+            StreakView.From(await streak.GetDaysAsync(ct), DateOnly.FromDateTime(Now), result.GetValue(days)),
+            CliJsonContext.Readable.StreakView));
+        return command;
+    }
+
+    private Command CreateStreakSetCommand()
+    {
+        var count = new Option<int?>("--count") { Description = "Streak length including the day." };
+        var freezes = new Option<int?>("--freezes") { Description = $"Streak freezes in stock, 0-{StreakRules.MaxFreezes}." };
+        var date = DateOption();
+        var command = new Command("set", "Overwrite the streak count and/or freeze count of a day. The app shows it after a re-login.")
+        {
+            count, freezes, date,
+        };
+        command.SetAction((result, ct) => RunAsync(async () =>
+        {
+            var (c, f) = (result.GetValue(count), result.GetValue(freezes));
+            if (c is null && f is null)
+                throw new ArgumentException("Pass --count and/or --freezes.");
+            var day = await streak.SetDayAsync(DiaryInput.ParseDate(result.GetValue(date), Now), c, f, ct);
+            return StreakDayView.From(day);
+        }, CliJsonContext.Readable.StreakDayView));
         return command;
     }
 

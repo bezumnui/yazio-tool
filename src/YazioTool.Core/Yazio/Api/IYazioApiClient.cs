@@ -12,4 +12,10 @@ internal interface IYazioApiClient
     Task AddConsumedItemsAsync(AddConsumedItemsRequest request, CancellationToken cancellationToken);
 
     Task DeleteConsumedItemsAsync(IReadOnlyCollection<Guid> entryIds, CancellationToken cancellationToken);
+
+    /// <returns>Streak days keyed by yyyy-MM-dd.</returns>
+    Task<Dictionary<string, StreakDayDto>> GetStreakAsync(CancellationToken cancellationToken);
+
+    /// <summary>Creates or replaces one streak day.</summary>
+    Task SetStreakDayAsync(DateOnly date, StreakDayDto day, CancellationToken cancellationToken);
 }

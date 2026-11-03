@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace YazioTool.Core.Yazio.Api;
@@ -64,3 +65,13 @@ internal sealed record NewSimpleProductDto(
     [property: JsonPropertyName("daytime")] string Daytime,
     [property: JsonPropertyName("nutrients")] IReadOnlyDictionary<string, double> Nutrients,
     [property: JsonPropertyName("is_ai_generated")] bool IsAiGenerated);
+
+/// <summary>
+/// One day of <c>GET user/streak</c> (a map keyed by yyyy-MM-dd); the same shape is sent to <c>POST user/streak/{date}</c>.
+/// </summary>
+/// <param name="OriginOfRecovery">Unknown structure (null in practice); kept as raw JSON and sent back unchanged.</param>
+internal sealed record StreakDayDto(
+    [property: JsonPropertyName("daytimes")] IReadOnlyList<string>? Daytimes,
+    [property: JsonPropertyName("streak_count")] int? StreakCount,
+    [property: JsonPropertyName("freeze_count")] int? FreezeCount,
+    [property: JsonPropertyName("origin_of_recovery")] JsonElement? OriginOfRecovery);

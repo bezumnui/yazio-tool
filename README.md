@@ -10,7 +10,7 @@ Tools for the YAZIO food diary in C# / .NET 10:
 | `skill/yazio` | Agent skill (Claude / ChatGPT) that drives the CLI from a sandbox |
 | `tests/YazioTool.Core.Tests` | xUnit v3 tests for the library |
 
-> ⚠️ YAZIO has no public API. This project uses the private API of the YAZIO app (`yzapi.yazio.com/v19`)
+> ⚠️ YAZIO has no public API. This project uses the private API of the YAZIO app (`yzapi.yazio.com/v22`)
 > with publicly known client credentials. It may break at any time, and using it violates the YAZIO ToS.
 
 ## Features
@@ -18,6 +18,10 @@ Tools for the YAZIO food diary in C# / .NET 10:
 - `get_diary` / `yazio diary`: the diary for a day, with entries by meal (including ids), nutrition totals, goals and what is remaining.
 - `add_quick_entry` / `yazio add`: quick entry, a name plus kcal/protein/fat/carbs (no product from the database).
 - `remove_entries` / `yazio remove`: remove entries by id.
+- `get_streak` / `yazio streak`: the streak (the flame): current count, freezes, recent tracked days.
+- `set_streak` / `yazio streak set`: overwrite the streak count and/or freezes (0–2) of a day.
+- Adding food with the streak: `add_quick_entry` uploads the day to the streak by default (`updateStreak: false` to skip);
+  the CLI does it with `yazio add --streak`. See [docs/CLI.md](docs/CLI.md#how-the-streak-works) for how the streak works.
 
 Meal: `breakfast | lunch | dinner | snack` (Russian `завтрак | обед | ужин | перекус` are accepted too).
 Default time: "now" for today, otherwise a typical time for the meal (08:00 / 13:00 / 19:00 / 16:00).
@@ -29,9 +33,10 @@ Front ends:   YazioTool.Mcp (DiaryTools)      YazioTool.Cli (DiaryCommands)
                        \                         /
 Core/Application:     DiaryInput (input parsing), DiaryView (presentation)
                                    |
-Core/Abstractions:      IDiaryReader            IDiaryWriter         ← front ends depend only on these (DIP)
+Core/Application:     StreakRules (streak day derivation), StreakView
+Core/Abstractions:      IDiaryReader       IDiaryWriter       IStreakService   ← front ends depend only on these (DIP)
                                    |
-Core/Yazio:   YazioDiaryReader / YazioDiaryWriter
+Core/Yazio:   YazioDiaryReader / YazioDiaryWriter / YazioStreakService
                  ├─ IYazioApiClient  → YazioApiClient (HttpClient "yazio-api" + BearerTokenHandler)
                  ├─ IProductCatalog  → CachingProductCatalog ⟶ YazioProductCatalog   (decorator, OCP)
                  └─ IAccessTokenProvider → YazioAccessTokenProvider
@@ -53,7 +58,10 @@ Token handling: the token is cached and refreshed with the refresh token one min
 |---|---|
 | `Yazio:Username` / `Yazio__Username` | YAZIO e-mail (needed only to log in when there is no valid or refreshable token) |
 | `Yazio:Password` / `Yazio__Password` | password (same) |
-| `Yazio:BaseUrl` | defaults to `https://yzapi.yazio.com/v19/` |
+| `Yazio:BaseUrl` | defaults to `https://yzapi.yazio.com/v22/` |
+| `Yazio:AppVersion` | sent as `X-Yazio-App-Version`, defaults to `26.43.1` |
+| `Yazio:BuildNumber` | sent as `X-Yazio-Build-Number`, defaults to `2643100` |
+| `Yazio:Platform` | sent as `X-Yazio-Platform`, defaults to `android` |
 | `Yazio:ClientId`, `Yazio:ClientSecret` | default to the YAZIO app credentials |
 | `Mcp:ApiKey` / `Mcp__ApiKey` | key for the MCP endpoint (MCP only) |
 | `TZ` | time zone for "today"/"now" |
@@ -103,7 +111,10 @@ The script uses the local `dotnet` if present, otherwise the .NET SDK Docker ima
 export YAZIO_USERNAME=you@example.com YAZIO_PASSWORD='...' TZ=Asia/Dubai
 yazio diary
 yazio add -n "Plov, 350 g" --kcal 650 -p 25 -f 28 -c 70 -m lunch
+yazio add -n "Candy" --kcal 52 -p 0.5 -f 2.3 -c 7.2 -m snack --streak
 yazio remove <id>
+yazio streak
+yazio streak set --count 100 --freezes 2
 ```
 
 Full command reference, output formats and exit codes: [docs/CLI.md](docs/CLI.md).
@@ -129,5 +140,15 @@ dotnet test --solution YazioTool.slnx
 
 ## API version
 
-Verified against the live API (2026-11): `v15`–`v19` work, `v20`–`v22` return `403 version_blocked`,
-and `v23+` return `410`. The default is `v19`. It can be overridden with `Yazio:BaseUrl`.
+The current app (26.43.1) uses `v22`, which is the default. YAZIO blocks requests by client version, not by URL:
+without the headers below every data endpoint returns `403 {"error":"version_blocked"}` (`oauth/token` still works).
+
+| Header | Checked |
+|---|---|
+| `X-Yazio-Platform: android` | must be present |
+| `X-Yazio-App-Version: 26.43.1` | value is checked (e.g. `1.0.0` is blocked) |
+| `X-Yazio-Build-Number: 2643100` | must be present, value is not checked |
+
+All three are sent with every request and configurable (`Yazio:Platform`, `Yazio:AppVersion`, `Yazio:BuildNumber`).
+When YAZIO blocks the app version, raising `Yazio:AppVersion` to the current release should help.
+Older notes (2026-11, without these headers): `v15`–`v19` worked, `v20`–`v22` returned `403 version_blocked`, `v23+` returned `410`.

@@ -14,4 +14,6 @@ namespace YazioTool.Core.Yazio.Api;
 [JsonSerializable(typeof(AddConsumedItemsRequest))]
 [JsonSerializable(typeof(IReadOnlyCollection<Guid>))]
 [JsonSerializable(typeof(StoredToken))]
+[JsonSerializable(typeof(Dictionary<string, StreakDayDto>))]
+[JsonSerializable(typeof(StreakDayDto))]
 internal sealed partial class YazioJsonContext : JsonSerializerContext;

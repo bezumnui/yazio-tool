@@ -8,12 +8,13 @@ using YazioTool.Core.Yazio.Api;
 using YazioTool.Core.Yazio.Auth;
 using YazioTool.Core.Yazio.Diary;
 using YazioTool.Core.Yazio.Products;
+using YazioTool.Core.Yazio.Streak;
 
 namespace YazioTool.Core.DependencyInjection;
 
 public static class ServiceCollectionExtensions
 {
-    /// <summary>Registers <see cref="IDiaryReader"/> and <see cref="IDiaryWriter"/> backed by the YAZIO API.</summary>
+    /// <summary>Registers <see cref="IDiaryReader"/>, <see cref="IDiaryWriter"/> and <see cref="IStreakService"/> backed by the YAZIO API.</summary>
     /// <param name="configuration">Section bound to <see cref="YazioOptions"/>.</param>
     public static IServiceCollection AddYazio(this IServiceCollection services, IConfiguration configuration)
     {
@@ -40,6 +41,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IDiaryReader, YazioDiaryReader>();
         services.AddSingleton<IDiaryWriter, YazioDiaryWriter>();
+        services.AddSingleton<IStreakService, YazioStreakService>();
 
         return services;
     }
@@ -57,5 +59,8 @@ public static class ServiceCollectionExtensions
         var options = serviceProvider.GetRequiredService<IOptions<YazioOptions>>().Value;
         http.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
         http.Timeout = TimeSpan.FromSeconds(30);
+        http.DefaultRequestHeaders.Add("X-Yazio-Platform", options.Platform);
+        http.DefaultRequestHeaders.Add("X-Yazio-App-Version", options.AppVersion);
+        http.DefaultRequestHeaders.Add("X-Yazio-Build-Number", options.BuildNumber);
     }
 }

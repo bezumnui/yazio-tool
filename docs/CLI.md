@@ -1,7 +1,7 @@
 # yazio CLI reference
 
 A self-contained single-file binary for Linux (x64 / arm64). No installed .NET runtime is needed.
-It works with the YAZIO food diary through the unofficial API (v19).
+It works with the YAZIO food diary through the unofficial API (v22).
 
 ## Installation
 
@@ -19,7 +19,7 @@ Requirements: glibc, OpenSSL and ca-certificates, network access to `yzapi.yazio
 | `YAZIO_PASSWORD` | password, in the same cases |
 | `YAZIO_TOKEN_CACHE` | token cache path, default `~/.local/share/yazio-tool/token.json` (mode 600) |
 | `TZ` | time zone for "today" and "now", e.g. `Asia/Dubai`. **Always set it in a sandbox**, otherwise UTC is used |
-| `Yazio__BaseUrl` | overrides the API base URL, default `https://yzapi.yazio.com/v19/` |
+| `Yazio__BaseUrl` | overrides the API base URL, default `https://yzapi.yazio.com/v22/` |
 
 Token handling: after logging in, the token is saved to the file and refreshed automatically with the refresh token.
 The CLI logs in again with the password only if refreshing fails.
@@ -49,6 +49,7 @@ Commands:
   diary         Show the diary for a day: entries by meal with ids, totals, goals, remaining.
   add           Add a quick entry (name + kcal and macros, no product from the database).
   remove <ids>  Remove diary entries by id.
+  streak        Show the YAZIO streak: current count, freezes, recent tracked days.
 ```
 
 ## `yazio diary`: the diary for a day
@@ -115,6 +116,7 @@ Options:
   -m, --meal <meal> (REQUIRED)        breakfast | lunch | dinner | snack.
   -d, --date <date>                   Day in YYYY-MM-DD. Defaults to today.
   -t, --time <time>                   HH:mm. Defaults to now for today, otherwise a typical time for the meal.
+  -s, --streak                        Also mark the day in the YAZIO streak (the flame), like the app does.
   -?, -h, --help                      Show help and usage information
 ```
 
@@ -122,6 +124,7 @@ Options:
 - Negative values and an empty name are rejected with exit code 2.
 - Default time: the current time for today; for other days `08:00`, `13:00`, `19:00` or `16:00` depending on the meal.
 - `--kcal` has no short form.
+- `--streak` also uploads the day to the YAZIO streak (see `yazio streak`). Without it the entry is added but the flame does not light up.
 
 Examples:
 
@@ -138,9 +141,12 @@ Output:
   "name": "Plov, 350 g",
   "meal": "lunch",
   "consumedAt": "2026-11-02 13:30",
-  "nutrition": { "kcal": 650, "protein": 25, "fat": 28, "carbs": 70 }
+  "nutrition": { "kcal": 650, "protein": 25, "fat": 28, "carbs": 70 },
+  "streak": null
 }
 ```
+
+With `--streak`, `streak` holds the updated day, e.g. `{"date": "2026-11-02", "meals": ["lunch"], "streakCount": 76, "freezeCount": 1}`.
 
 ## `yazio remove`: remove entries
 
@@ -160,8 +166,65 @@ Options:
 - Output: `{"removed": ["22e3353e-..."]}`.
 - ⚠️ Removal has not been verified against the live API yet.
 
+## `yazio streak`: the streak (the flame)
+
+```
+Usage:
+  yazio streak [command] [options]
+
+Options:
+  --days <days>   How many recent tracked days to show. [default: 14]
+  -?, -h, --help  Show help and usage information
+
+Commands:
+  set  Overwrite the streak count and/or freeze count of a day. The app shows it after a re-login.
+```
+
+Output:
+
+```json
+{
+  "currentStreak": 76,
+  "freezes": 1,
+  "lastTrackedDay": "2026-11-03",
+  "trackedToday": true,
+  "days": [
+    { "date": "2026-11-02", "meals": ["breakfast"], "streakCount": 75, "freezeCount": 1 },
+    { "date": "2026-11-03", "meals": ["breakfast", "snack"], "streakCount": 76, "freezeCount": 1 }
+  ]
+}
+```
+
+- `currentStreak` is the count of the last tracked day if it is today or yesterday, otherwise `0`.
+- `days` holds only tracked days, oldest first; a missing date is a day without tracking.
+
+## `yazio streak set`: change the streak count / freezes
+
+```
+Usage:
+  yazio streak set [options]
+
+Options:
+  --count <count>      Streak length including the day.
+  --freezes <freezes>  Streak freezes in stock, 0-2.
+  -d, --date <date>    Day in YYYY-MM-DD. Defaults to today.
+  -?, -h, --help       Show help and usage information
+```
+
+- At least one of `--count` / `--freezes` is required. An omitted value is kept; for an untracked day it is computed from the previous day.
+- Freezes are limited to 0–2 (two slots in the app; YAZIO fails with HTTP 500 on larger values).
+- Example: `yazio streak set --count 100 --freezes 2`. Output: one day in the format of `days` above.
+
+### How the streak works
+
+YAZIO does not compute the streak on the server. The app derives each day on the phone
+(`daytimes` = meals tracked that day, `streak_count` = previous day + 1, `freeze_count` = freezes in stock)
+and uploads it with `POST user/streak/{date}`; the server stores the values as they are.
+Food added through the API therefore lights the flame only if the day is uploaded too (`add --streak`).
+The app caches the streak and shows server-side changes only **after logging out and in again**.
+
 ## Limitations
 
 - No product search in the YAZIO database. Only quick entries can be added.
 - Entries cannot be edited, only removed and added again.
-- The API is unofficial: v20 and later are already blocked, and v19 may be closed too. If that happens, `Yazio__BaseUrl` helps.
+- The API is unofficial. v22 works only with the `X-Yazio-Platform`, `X-Yazio-App-Version` and `X-Yazio-Build-Number` headers (sent automatically); when YAZIO blocks the app version, raise `Yazio__AppVersion`.

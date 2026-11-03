@@ -42,6 +42,15 @@ internal sealed class YazioApiClient(IHttpClientFactory httpClientFactory) : IYa
         await YazioApiException.ThrowIfFailedAsync(response, cancellationToken);
     }
 
+    public Task<Dictionary<string, StreakDayDto>> GetStreakAsync(CancellationToken cancellationToken) =>
+        GetAsync("user/streak", YazioJsonContext.Default.DictionaryStringStreakDayDto, cancellationToken);
+
+    public async Task SetStreakDayAsync(DateOnly date, StreakDayDto day, CancellationToken cancellationToken)
+    {
+        using var response = await Http.PostAsJsonAsync($"user/streak/{YazioFormats.FormatDate(date)}", day, YazioJsonContext.Default.StreakDayDto, cancellationToken);
+        await YazioApiException.ThrowIfFailedAsync(response, cancellationToken);
+    }
+
     private async Task<T> GetAsync<T>(string uri, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken)
     {
         using var response = await Http.GetAsync(uri, cancellationToken);
